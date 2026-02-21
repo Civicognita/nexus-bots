@@ -1,0 +1,203 @@
+/**
+ * BOTS — Bolt-On Taskmaster System
+ *
+ * Multi-agent work queue orchestration for Claude Code projects.
+ * Install into any project to enable parallel worker execution.
+ *
+ * @module bots
+ */
+
+// Parser - shortcode extraction
+export {
+  parseShortcodes,
+  hasShortcodes,
+  extractQueueTexts,
+  type ParsedQueue,
+  type ParsedNext,
+  type ParsedItem,
+  type ParseResult
+} from './parser.js';
+
+// Router - keyword analysis and entry worker selection
+export {
+  loadRoutingRules,
+  clearRoutingCache,
+  findRoute,
+  getEntryWorker,
+  routeQueues,
+  type RoutingRule,
+  type RouteMatch
+} from './router.js';
+
+// Job Manager - lifecycle and state management
+export {
+  loadState,
+  saveState,
+  loadEnforcedChains,
+  generateJobId,
+  createJob,
+  startJob,
+  setJobPhases,
+  completePhase,
+  approveCheckpoint,
+  rejectCheckpoint,
+  getChainedWorker,
+  getActiveJobs,
+  getJob,
+  setNextFrame,
+  popNextFrame,
+  type JobStatus,
+  type PhaseStatus,
+  type GateType,
+  type JobPhase,
+  type Job,
+  type TaskmasterState,
+  type ProjectBinding
+} from './job-manager.js';
+
+// Worktree - git worktree management
+export {
+  getRepoRoot,
+  ensureWorktreesDir,
+  createWorktree,
+  removeWorktree,
+  getWorktreeInfo,
+  listWorktrees,
+  mergeWorktree,
+  deleteJobBranch,
+  cleanupJob,
+  type WorktreeInfo,
+  type WorktreeCreateResult
+} from './worktree.js';
+
+// Executor - phase execution and worker dispatch
+export {
+  generateWorkerTid,
+  createDispatchFile,
+  readHandoffFile,
+  handoffExists,
+  createWorkerDispatch,
+  getPhaseWorkers,
+  preparePhase,
+  checkPhaseStatus,
+  getSpawnCommands,
+  type WorkerDispatch,
+  type PhaseExecutionResult,
+  type DispatchMessage
+} from './executor.js';
+
+// Gates - phase transition handling
+export {
+  evaluateGate,
+  handleApproval,
+  handleCompletion,
+  type GateDecision,
+  type CheckpointNotification,
+  type WorkerSummary,
+  type FileChange,
+  type TestSummary,
+  type CheckpointOption
+} from './gates.js';
+
+// Display - CLI output formatting
+export {
+  progressBar,
+  calculateProgress,
+  formatJobLine,
+  displayJobsStatus,
+  displayCheckpoint,
+  displayCompletion,
+  displayPhaseProgress,
+  displayQueuedItems,
+  formatDuration
+} from './display.js';
+
+// Project Integration - pluggable PM sync
+export {
+  setIntegration,
+  getIntegration,
+  isBound,
+  bindJob,
+  getSyncOperation,
+  getPhaseCommentOperation,
+  recordSyncEvent,
+  getPendingSyncs,
+  parseReferences,
+  type ProjectIntegration,
+  type ProjectBinding as IntegrationBinding,
+  type SyncEvent,
+  type SyncOperation
+} from './project-integration.js';
+
+// Orchestrator - autonomous work management
+export {
+  orchestrate,
+  loadPendingWork,
+  savePendingWork,
+  queueJob,
+  clearPendingWork,
+  generateTaskCalls,
+  formatResult,
+  type PendingWork,
+  type PendingJob,
+  type WorkerSpawnInfo,
+  type CheckpointInfo,
+  type OrchestratorResult
+} from './orchestrator.js';
+
+// Monitor - background job tracking
+export {
+  runMonitorCycle,
+  getWorkerStatuses,
+  isWorkerComplete,
+  autoCompleteJobs,
+  archiveJobHandoffs,
+  formatMonitorResult,
+  type MonitorResult,
+  type CheckpointReady,
+  type WorkerStatus
+} from './monitor.js';
+
+/**
+ * Process user input containing BOTS shortcodes
+ *
+ * Main entry point for BOTS processing.
+ * Parses input, creates jobs, and returns what was queued.
+ *
+ * @example
+ * ```ts
+ * const result = processInput(`
+ *   w:> Add logout button to dashboard
+ *   w:> Fix README typo
+ *   n:> Review analytics
+ * `);
+ * // result.jobs = [Job, Job]
+ * // result.next = "Review analytics"
+ * ```
+ */
+export function processInput(input: string, configPath?: string): {
+  jobs: import('./job-manager.js').Job[];
+  next: string | null;
+  hasWork: boolean;
+} {
+  const { parseShortcodes } = require('./parser.js');
+  const { createJob, setNextFrame } = require('./job-manager.js');
+
+  const parsed = parseShortcodes(input);
+  const jobs: import('./job-manager.js').Job[] = [];
+
+  for (const queue of parsed.queues) {
+    const job = createJob(queue.content, configPath);
+    jobs.push(job);
+  }
+
+  if (parsed.next) {
+    setNextFrame(parsed.next.content, configPath);
+  }
+
+  return {
+    jobs,
+    next: parsed.next?.content || null,
+    hasWork: jobs.length > 0 || parsed.next !== null
+  };
+}

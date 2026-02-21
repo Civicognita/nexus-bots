@@ -1,0 +1,211 @@
+{
+  "schema": "spawn-config-v2",
+  "description": "Worker spawn templates and dispatch configuration",
+
+  "defaults": {
+    "timeout_ms": 120000,
+    "max_tokens": 4000,
+    "parallel_max": 3,
+    "worktree_isolation": true,
+    "handoff_dir": ".ai/handoff"
+  },
+
+  "workers": {
+    "$W.code.engineer": {
+      "model": "sonnet",
+      "timeout_ms": 180000,
+      "max_tokens": 8000,
+      "tools_allowed": ["Read", "Glob", "Grep"],
+      "tools_denied": ["AskUserQuestion", "Write", "Edit", "Bash"],
+      "typical_tasks": ["Architecture design", "Phase specification", "Dependency mapping"]
+    },
+    "$W.code.hacker": {
+      "model": "sonnet",
+      "timeout_ms": 300000,
+      "max_tokens": 8000,
+      "tools_allowed": ["Read", "Glob", "Grep", "Write", "Edit", "Bash"],
+      "tools_denied": ["AskUserQuestion"],
+      "typical_tasks": ["Implementation", "Bug fixes", "Refactoring"],
+      "enforced_chain": "$W.code.tester"
+    },
+    "$W.code.tester": {
+      "model": "sonnet",
+      "timeout_ms": 180000,
+      "max_tokens": 6000,
+      "tools_allowed": ["Read", "Glob", "Grep", "Write", "Bash"],
+      "tools_denied": ["AskUserQuestion", "Edit"],
+      "typical_tasks": ["Test writing", "Test execution", "Coverage analysis"]
+    },
+    "$W.code.reviewer": {
+      "model": "sonnet",
+      "timeout_ms": 180000,
+      "max_tokens": 6000,
+      "tools_allowed": ["Read", "Glob", "Grep", "Bash"],
+      "tools_denied": ["AskUserQuestion", "Write", "Edit"],
+      "typical_tasks": ["Code review", "Pattern compliance", "Security scanning"]
+    },
+
+    "$W.k.librarian": {
+      "model": "haiku",
+      "timeout_ms": 120000,
+      "max_tokens": 4000,
+      "tools_allowed": ["Read", "Glob", "Grep", "Write"],
+      "tools_denied": ["AskUserQuestion", "Edit", "Bash"],
+      "typical_tasks": ["Indexing", "Retrieval", "RAG preparation"]
+    },
+    "$W.k.cryptologist": {
+      "model": "haiku",
+      "timeout_ms": 60000,
+      "max_tokens": 4000,
+      "tools_allowed": ["Read", "Write"],
+      "tools_denied": ["AskUserQuestion", "Glob", "Grep", "Edit", "Bash"],
+      "typical_tasks": ["Encoding", "Decoding", "Integrity verification"]
+    },
+    "$W.k.analyst": {
+      "model": "sonnet",
+      "timeout_ms": 180000,
+      "max_tokens": 6000,
+      "tools_allowed": ["Read", "Glob", "Grep"],
+      "tools_denied": ["AskUserQuestion", "Write", "Edit", "Bash"],
+      "typical_tasks": ["Pattern recognition", "Connection analysis", "Research"]
+    },
+    "$W.k.linguist": {
+      "model": "sonnet",
+      "timeout_ms": 120000,
+      "max_tokens": 4000,
+      "tools_allowed": ["Read", "Glob", "Grep", "Write", "Edit"],
+      "tools_denied": ["AskUserQuestion", "Bash"],
+      "typical_tasks": ["Glossary updates", "Terminology consistency", "Naming conventions"]
+    },
+
+    "$W.ux.designer.web": {
+      "model": "sonnet",
+      "timeout_ms": 240000,
+      "max_tokens": 8000,
+      "tools_allowed": ["Read", "Glob", "Grep", "Write", "Edit"],
+      "tools_denied": ["AskUserQuestion", "Bash"],
+      "typical_tasks": ["UI component design", "Styling", "Accessibility"]
+    },
+    "$W.ux.designer.cli": {
+      "model": "sonnet",
+      "timeout_ms": 180000,
+      "max_tokens": 6000,
+      "tools_allowed": ["Read", "Glob", "Grep", "Write", "Edit"],
+      "tools_denied": ["AskUserQuestion", "Bash"],
+      "typical_tasks": ["CLI output design", "Terminal UI", "Progress indicators"]
+    },
+
+    "$W.strat.planner": {
+      "model": "sonnet",
+      "timeout_ms": 240000,
+      "max_tokens": 10000,
+      "tools_allowed": ["Read", "Glob", "Grep", "Write"],
+      "tools_denied": ["AskUserQuestion", "Edit", "Bash"],
+      "typical_tasks": ["Work planning", "Phase sequencing", "Worker assignment"]
+    },
+    "$W.strat.prioritizer": {
+      "model": "haiku",
+      "timeout_ms": 60000,
+      "max_tokens": 4000,
+      "tools_allowed": ["Read"],
+      "tools_denied": ["AskUserQuestion", "Glob", "Grep", "Write", "Edit", "Bash"],
+      "typical_tasks": ["Impact analysis", "Effort estimation", "Priority scoring"]
+    },
+
+    "$W.comm.writer.tech": {
+      "model": "sonnet",
+      "timeout_ms": 180000,
+      "max_tokens": 6000,
+      "tools_allowed": ["Read", "Glob", "Grep", "Write"],
+      "tools_denied": ["AskUserQuestion", "Edit", "Bash"],
+      "typical_tasks": ["API docs", "Technical guides", "README files"],
+      "enforced_chain": "$W.comm.editor"
+    },
+    "$W.comm.writer.policy": {
+      "model": "sonnet",
+      "timeout_ms": 180000,
+      "max_tokens": 6000,
+      "tools_allowed": ["Read", "Glob", "Grep", "Write"],
+      "tools_denied": ["AskUserQuestion", "Edit", "Bash"],
+      "typical_tasks": ["Policy documents", "Procedures", "Guidelines"],
+      "enforced_chain": "$W.comm.editor"
+    },
+    "$W.comm.editor": {
+      "model": "haiku",
+      "timeout_ms": 60000,
+      "max_tokens": 4000,
+      "tools_allowed": ["Read", "Edit"],
+      "tools_denied": ["AskUserQuestion", "Glob", "Grep", "Write", "Bash"],
+      "typical_tasks": ["Proofreading", "Style consistency", "Grammar"]
+    },
+
+    "$W.ops.deployer": {
+      "model": "sonnet",
+      "timeout_ms": 300000,
+      "max_tokens": 6000,
+      "tools_allowed": ["Read", "Glob", "Grep", "Write", "Edit", "Bash"],
+      "tools_denied": ["AskUserQuestion"],
+      "typical_tasks": ["Version bumps", "Releases", "CI/CD"]
+    },
+    "$W.ops.custodian": {
+      "model": "haiku",
+      "timeout_ms": 120000,
+      "max_tokens": 4000,
+      "tools_allowed": ["Read", "Glob", "Bash"],
+      "tools_denied": ["AskUserQuestion", "Grep", "Write", "Edit"],
+      "typical_tasks": ["Cleanup", "Archival", "Cache clearing"]
+    },
+    "$W.ops.syncer": {
+      "model": "sonnet",
+      "timeout_ms": 180000,
+      "max_tokens": 4000,
+      "tools_allowed": ["Read", "Glob", "Grep", "Bash"],
+      "tools_denied": ["AskUserQuestion", "Write", "Edit"],
+      "typical_tasks": ["Upstream sync", "Fork management", "Branch coordination"]
+    },
+
+    "$W.gov.auditor": {
+      "model": "sonnet",
+      "timeout_ms": 180000,
+      "max_tokens": 6000,
+      "tools_allowed": ["Read", "Glob", "Grep"],
+      "tools_denied": ["AskUserQuestion", "Write", "Edit", "Bash"],
+      "typical_tasks": ["Verification", "Compliance checks", "Security audit"],
+      "enforced_chain": "$W.gov.archivist"
+    },
+    "$W.gov.archivist": {
+      "model": "haiku",
+      "timeout_ms": 60000,
+      "max_tokens": 4000,
+      "tools_allowed": ["Read", "Write"],
+      "tools_denied": ["AskUserQuestion", "Glob", "Grep", "Edit", "Bash"],
+      "typical_tasks": ["Record archival", "Index updates"]
+    },
+
+    "$W.data.modeler": {
+      "model": "sonnet",
+      "timeout_ms": 180000,
+      "max_tokens": 6000,
+      "tools_allowed": ["Read", "Glob", "Grep", "Write"],
+      "tools_denied": ["AskUserQuestion", "Edit", "Bash"],
+      "typical_tasks": ["Schema design", "Entity relationships", "Migration planning"],
+      "enforced_chain": "$W.k.linguist"
+    },
+    "$W.data.migrator": {
+      "model": "sonnet",
+      "timeout_ms": 300000,
+      "max_tokens": 6000,
+      "tools_allowed": ["Read", "Glob", "Grep", "Write", "Bash"],
+      "tools_denied": ["AskUserQuestion", "Edit"],
+      "typical_tasks": ["Data migrations", "Format conversions", "Bulk transformations"]
+    }
+  },
+
+  "enforced_chains": {
+    "$W.code.hacker": "$W.code.tester",
+    "$W.data.modeler": "$W.k.linguist",
+    "$W.comm.writer.tech": "$W.comm.editor",
+    "$W.comm.writer.policy": "$W.comm.editor",
+    "$W.gov.auditor": "$W.gov.archivist"
+  }
+}

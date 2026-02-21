@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "bots://schemas/workers-v1",
+  "title": "Workers Registry",
+  "description": "Ephemeral tracking of active WORKER agents",
+  "type": "object",
+  "required": ["workers"],
+  "properties": {
+    "parent_terminal": {
+      "type": "string",
+      "description": "TID of the terminal that spawned workers"
+    },
+    "workers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["tid", "worker", "status", "dispatched_at"],
+        "properties": {
+          "tid": { "type": "string", "description": "Worker terminal ID" },
+          "worker": {
+            "type": "string",
+            "pattern": "^\\$W\\.[a-z]+",
+            "description": "Worker agent type"
+          },
+          "task_id": { "type": "string", "description": "Bound project task ID" },
+          "status": {
+            "type": "string",
+            "enum": ["dispatched", "running", "done", "blocked", "failed", "timeout"],
+            "description": "Current worker status"
+          },
+          "dispatched_at": { "type": "string", "format": "date-time" },
+          "completed_at": { "type": "string", "format": "date-time" },
+          "handoff_path": { "type": "string", "description": "Path to handoff file" },
+          "worktree": { "type": "string", "description": "Path to isolated worktree (if parallel)" }
+        }
+      }
+    },
+    "stats": {
+      "type": "object",
+      "properties": {
+        "total_dispatched": { "type": "integer" },
+        "completed": { "type": "integer" },
+        "failed": { "type": "integer" },
+        "active": { "type": "integer" }
+      }
+    }
+  }
+}

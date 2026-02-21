@@ -1,0 +1,22 @@
+{
+  "name": "nexus-bots",
+  "version": "1.0.0",
+  "description": "BOTS — Bolt-On Taskmaster System for Claude Code",
+  "private": true,
+  "scripts": {
+    "tm": "npx tsx lib/cli.ts",
+    "tm:status": "npx tsx lib/cli.ts status",
+    "tm:jobs": "npx tsx lib/cli.ts jobs"
+  },
+  "devDependencies": {
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.0",
+    "@types/node": "^20.10.0"
+  },
+  "keywords": ["claude-code", "taskmaster", "multi-agent", "worker-queue"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:Civicognita/nexus-bots.git"
+  }
+}

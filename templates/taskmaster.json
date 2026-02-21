@@ -1,0 +1,91 @@
+{
+  "version": "1.0.0",
+  "wip": {
+    "jobs": {},
+    "next_frame": null,
+    "job_counter": 0
+  },
+  "routing": {
+    "code-impl": {
+      "description": "Code implementation tasks",
+      "entry": "$W.code.engineer",
+      "keywords": ["add", "create", "build", "implement", "new", "feature", "component"]
+    },
+    "code-refactor": {
+      "description": "Code restructuring",
+      "entry": "$W.code.engineer",
+      "keywords": ["refactor", "redesign", "restructure", "rework", "extract", "reorganize"]
+    },
+    "code-fix": {
+      "description": "Bug fixes",
+      "entry": "$W.code.hacker",
+      "keywords": ["fix", "bug", "error", "broken", "patch", "hotfix", "crash"]
+    },
+    "documentation": {
+      "description": "Documentation tasks",
+      "entry": "$W.comm.writer.tech",
+      "keywords": ["document", "explain", "readme", "guide", "docs", "api"]
+    },
+    "analysis": {
+      "description": "Research and analysis",
+      "entry": "$W.k.analyst",
+      "keywords": ["analyze", "investigate", "research", "review", "audit", "explore"]
+    },
+    "operations": {
+      "description": "Ops and sync tasks",
+      "entry": "$W.ops.syncer",
+      "keywords": ["sync", "merge", "upstream", "rebase", "deploy", "release"]
+    },
+    "terminology": {
+      "description": "Naming and glossary",
+      "entry": "$W.k.linguist",
+      "keywords": ["term", "glossary", "lexicon", "define", "rename", "naming"]
+    },
+    "data": {
+      "description": "Schema and data modeling",
+      "entry": "$W.data.modeler",
+      "keywords": ["schema", "model", "entity", "relationship", "database", "migration"]
+    },
+    "governance": {
+      "description": "Compliance and auditing",
+      "entry": "$W.gov.auditor",
+      "keywords": ["audit", "compliance", "verify", "security", "policy"]
+    },
+    "ux": {
+      "description": "User experience design",
+      "entry": "$W.ux.designer.web",
+      "keywords": ["design", "ui", "ux", "layout", "style", "responsive"]
+    },
+    "strategy": {
+      "description": "Planning and prioritization",
+      "entry": "$W.strat.planner",
+      "keywords": ["plan", "prioritize", "roadmap", "strategy", "architecture"]
+    },
+    "testing": {
+      "description": "Test tasks",
+      "entry": "$W.code.tester",
+      "keywords": ["test", "coverage", "spec", "assertion", "mock"]
+    }
+  },
+  "enforced_chains": {
+    "$W.code.hacker": "$W.code.tester",
+    "$W.data.modeler": "$W.k.linguist",
+    "$W.comm.writer.tech": "$W.comm.editor",
+    "$W.comm.writer.policy": "$W.comm.editor",
+    "$W.gov.auditor": "$W.gov.archivist"
+  },
+  "dispatch_rules": {
+    "task_matching": {
+      "add|create|build|implement|new|feature": "$W.code.engineer",
+      "refactor|redesign|restructure|rework": "$W.code.engineer",
+      "fix|bug|error|broken|patch": "$W.code.hacker",
+      "document|explain|readme|guide": "$W.comm.writer.tech",
+      "analyze|investigate|research|audit|review": "$W.k.analyst",
+      "sync|merge|upstream|rebase": "$W.ops.syncer",
+      "term|glossary|lexicon|define|rename": "$W.k.linguist",
+      "schema|model|entity|relationship": "$W.data.modeler",
+      "audit|compliance|verify|security": "$W.gov.auditor"
+    },
+    "fallback_worker": "$W.k.analyst"
+  }
+}

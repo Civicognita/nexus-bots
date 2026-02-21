@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "bots://schemas/dispatch-v1",
+  "title": "Worker Dispatch Message",
+  "description": "Message format for dispatching work to WORKER agents",
+  "type": "object",
+  "required": ["dispatch"],
+  "properties": {
+    "dispatch": {
+      "type": "object",
+      "required": ["worker", "task"],
+      "properties": {
+        "worker": {
+          "type": "string",
+          "pattern": "^\\$W\\.[a-z]+",
+          "description": "Worker agent identifier (e.g., $W.analyst)"
+        },
+        "task": {
+          "type": "object",
+          "required": ["description"],
+          "properties": {
+            "description": {
+              "type": "string",
+              "description": "Clear description of the work to perform"
+            },
+            "scope": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "File patterns or paths defining work scope"
+            },
+            "constraints": {
+              "type": "object",
+              "properties": {
+                "max_tokens": { "type": "integer", "default": 4000 },
+                "timeout_ms": { "type": "integer", "default": 120000 },
+                "model_override": { "type": "string", "enum": ["haiku", "sonnet", "opus"] }
+              }
+            }
+          }
+        },
+        "context": {
+          "type": "object",
+          "properties": {
+            "parent_tid": { "type": "string", "description": "Parent terminal's TID" },
+            "parent_coa": { "type": "string", "description": "Parent traceability chain" },
+            "existing_patterns": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Known codebase patterns relevant to task"
+            }
+          }
+        },
+        "output_path": {
+          "type": "string",
+          "description": "Path where worker should write handoff (default: .ai/handoff/<tid>.json)"
+        }
+      }
+    }
+  }
+}

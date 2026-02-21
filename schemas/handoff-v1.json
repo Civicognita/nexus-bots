@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "bots://schemas/handoff-v1",
+  "title": "Worker Handoff Message",
+  "description": "Output format for WORKER agents returning results to manager",
+  "type": "object",
+  "required": ["handoff"],
+  "properties": {
+    "handoff": {
+      "type": "object",
+      "required": ["worker", "task", "status", "coa", "output"],
+      "properties": {
+        "worker": {
+          "type": "string",
+          "pattern": "^\\$W\\.[a-z]+",
+          "description": "Worker agent that produced this handoff"
+        },
+        "task": {
+          "type": "string",
+          "description": "Task ID that was worked on"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["done", "blocked", "failed"],
+          "description": "Outcome status"
+        },
+        "coa": {
+          "type": "string",
+          "description": "Worker's traceability chain fingerprint"
+        },
+        "output": {
+          "type": "object",
+          "required": ["summary"],
+          "properties": {
+            "summary": { "type": "string", "description": "Brief human-readable summary of work done" },
+            "details": { "type": "object", "description": "Worker-type specific detailed output" },
+            "artifacts": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "type": { "type": "string", "enum": ["file", "memory", "code", "data"] },
+                  "path": { "type": "string" },
+                  "description": { "type": "string" }
+                }
+              },
+              "description": "Files created by worker"
+            }
+          }
+        },
+        "metrics": {
+          "type": "object",
+          "properties": {
+            "tokens_used": { "type": "integer" },
+            "duration_ms": { "type": "integer" },
+            "files_read": { "type": "integer" },
+            "files_written": { "type": "integer" }
+          }
+        },
+        "blocked_reason": { "type": "string", "description": "Explanation if status is 'blocked'" },
+        "error": {
+          "type": "object",
+          "properties": {
+            "code": { "type": "string" },
+            "message": { "type": "string" },
+            "recoverable": { "type": "boolean" }
+          },
+          "description": "Error details if status is 'failed'"
+        },
+        "next_suggested": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Suggested follow-up task IDs"
+        }
+      }
+    }
+  }
+}
