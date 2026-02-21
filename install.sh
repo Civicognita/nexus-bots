@@ -24,6 +24,18 @@ fail()  { echo -e "${RED}[BOTS]${NC} $1"; exit 1; }
 BOTS_SRC="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(pwd)"
 
+# Convert MINGW paths (/c/Users/...) to Windows paths (C:/Users/...) for Node.js
+# Node.js on Windows doesn't understand MINGW-style mount paths
+node_path() {
+  if command -v cygpath &> /dev/null; then
+    cygpath -m "$1"
+  else
+    echo "$1"
+  fi
+}
+BOTS_SRC_NODE="$(node_path "$BOTS_SRC")"
+PROJECT_ROOT_NODE="$(node_path "$PROJECT_ROOT")"
+
 info "Installing BOTS into: $PROJECT_ROOT"
 
 # ============================================================================
@@ -111,8 +123,8 @@ else
   # Merge: add new fields from template, preserve user data (wip, routing, enforced_chains)
   node -e "
     const fs = require('fs');
-    const tmpl = JSON.parse(fs.readFileSync('$BOTS_SRC/templates/taskmaster.json', 'utf-8'));
-    const existing = JSON.parse(fs.readFileSync('$PROJECT_ROOT/.bots/state/taskmaster.json', 'utf-8'));
+    const tmpl = JSON.parse(fs.readFileSync('$BOTS_SRC_NODE/templates/taskmaster.json', 'utf-8'));
+    const existing = JSON.parse(fs.readFileSync('$PROJECT_ROOT_NODE/.bots/state/taskmaster.json', 'utf-8'));
     const preserve = ['wip', 'routing', 'enforced_chains', 'dispatch_rules'];
     let added = 0;
     for (const key of Object.keys(tmpl)) {
@@ -120,10 +132,10 @@ else
       if (!(key in existing)) { existing[key] = tmpl[key]; added++; }
     }
     existing.version = tmpl.version;
-    fs.writeFileSync('$PROJECT_ROOT/.bots/state/taskmaster.json', JSON.stringify(existing, null, 2) + '\n');
+    fs.writeFileSync('$PROJECT_ROOT_NODE/.bots/state/taskmaster.json', JSON.stringify(existing, null, 2) + '\n');
     if (added > 0) console.log('  Merged ' + added + ' new fields into taskmaster.json');
     else console.log('  taskmaster.json up to date');
-  " 2>/dev/null || warn "  Could not merge taskmaster.json"
+  " || warn "  Could not merge taskmaster.json"
 fi
 
 if [ ! -f "$PROJECT_ROOT/.bots/state/spawn-config.json" ]; then
@@ -189,11 +201,12 @@ chmod +x "$PROJECT_ROOT/scripts/team-idle.sh"
 
 # Register hook in .claude/settings.local.json
 SETTINGS_FILE="$PROJECT_ROOT/.claude/settings.local.json"
+SETTINGS_FILE_NODE="$PROJECT_ROOT_NODE/.claude/settings.local.json"
 if [ -f "$SETTINGS_FILE" ]; then
   # Ensure all hooks are registered (adds missing ones, preserves existing)
   node -e "
     const fs = require('fs');
-    const settings = JSON.parse(fs.readFileSync('$SETTINGS_FILE', 'utf-8'));
+    const settings = JSON.parse(fs.readFileSync('$SETTINGS_FILE_NODE', 'utf-8'));
     settings.hooks = settings.hooks || {};
     let added = 0;
     // UserPromptSubmit hook
@@ -223,10 +236,10 @@ if [ -f "$SETTINGS_FILE" ]; then
     // Enable agent teams experimental flag
     settings.env = settings.env || {};
     settings.env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = '1';
-    fs.writeFileSync('$SETTINGS_FILE', JSON.stringify(settings, null, 2) + '\n');
+    fs.writeFileSync('$SETTINGS_FILE_NODE', JSON.stringify(settings, null, 2) + '\n');
     if (added > 0) console.log('  Registered ' + added + ' new hook(s)');
     else console.log('  All hooks already registered');
-  " 2>/dev/null || warn "  Could not register hooks — add manually"
+  " || warn "  Could not register hooks — add manually"
 else
   # Create settings file with hooks
   cat > "$SETTINGS_FILE" << 'SETTINGS_EOF'
@@ -277,28 +290,28 @@ fi
 
 info "Updating CLAUDE.md..."
 CLAUDE_MD="$PROJECT_ROOT/CLAUDE.md"
+CLAUDE_MD_NODE="$PROJECT_ROOT_NODE/CLAUDE.md"
 BOTS_TEMPLATE="$BOTS_SRC/templates/TASKMASTER.md"
+BOTS_TEMPLATE_NODE="$BOTS_SRC_NODE/templates/TASKMASTER.md"
 if [ -f "$CLAUDE_MD" ]; then
   if grep -q "BOTS.*Bolt-On Taskmaster" "$CLAUDE_MD" 2>/dev/null; then
     # Replace existing BOTS section with latest template
     node -e "
       const fs = require('fs');
-      const content = fs.readFileSync('$CLAUDE_MD', 'utf-8');
-      const template = fs.readFileSync('$BOTS_TEMPLATE', 'utf-8');
-      // Find BOTS section start (## BOTS or # BOTS header)
-      const botsStart = content.search(/^#+\s+BOTS\b/m);
-      if (botsStart === -1) { process.exit(1); }
-      // Find next same-or-higher-level heading after BOTS section
-      const headerMatch = content.substring(0, botsStart).match(/^(#+)\s/m) || content.substring(botsStart).match(/^(#+)\s/m);
-      const level = headerMatch ? headerMatch[1].length : 2;
-      const pattern = new RegExp('^#{1,' + level + '}\\\\s+(?!BOTS\\\\b)', 'm');
-      const afterBots = content.substring(botsStart + 1).search(pattern);
-      const botsEnd = afterBots === -1 ? content.length : botsStart + 1 + afterBots;
+      const content = fs.readFileSync('$CLAUDE_MD_NODE', 'utf-8');
+      const template = fs.readFileSync('$BOTS_TEMPLATE_NODE', 'utf-8');
+      const botsMatch = content.match(/^(#+)\s+BOTS\b/m);
+      if (!botsMatch) { process.exit(1); }
+      const botsStart = content.indexOf(botsMatch[0]);
+      const level = botsMatch[1].length;
+      const rest = content.substring(botsStart + botsMatch[0].length);
+      const nextMatch = rest.match(new RegExp('^#{1,' + level + '}\\\\s+(?!BOTS\\\\b)', 'm'));
+      const botsEnd = nextMatch ? botsStart + botsMatch[0].length + nextMatch.index : content.length;
       const before = content.substring(0, botsStart);
       const after = content.substring(botsEnd);
-      fs.writeFileSync('$CLAUDE_MD', before + template.trim() + '\\n' + after);
+      fs.writeFileSync('$CLAUDE_MD_NODE', before + template.trim() + '\\n' + after);
       console.log('  Updated BOTS section in CLAUDE.md');
-    " 2>/dev/null || {
+    " || {
       # Fallback: just append if replacement failed
       echo "" >> "$CLAUDE_MD"
       cat "$BOTS_TEMPLATE" >> "$CLAUDE_MD"
