@@ -89,6 +89,7 @@ import {
   formatTeamResult,
   generateTeamLeadInstructions
 } from './team-orchestrator.js';
+import { upgrade } from './upgrade.js';
 
 // ============================================================================
 // CLI Helpers
@@ -594,6 +595,44 @@ const commands: Record<string, (args: string[]) => void> = {
   },
 
   /**
+   * Upgrade an existing BOTS installation from source repo
+   */
+  upgrade(args: string[]) {
+    const check = args.includes('--check');
+    const sourcePath = args.find(a => !a.startsWith('--'));
+
+    if (!sourcePath) {
+      error('No source path provided. Usage: upgrade <source-path> [--check]');
+    }
+
+    const result = upgrade(sourcePath, check);
+
+    if (result.errors.length > 0) {
+      console.error('\nErrors:');
+      for (const e of result.errors) console.error(`  ✗ ${e}`);
+      process.exit(1);
+    }
+
+    console.log(`\nBOTS Upgrade ${check ? '(dry run)' : ''}`);
+    console.log(`  Version: ${result.fromVersion} → ${result.toVersion}`);
+    console.log(`  Files: ${result.counts.lib} lib, ${result.counts.workers} workers, ${result.counts.schemas} schemas, ${result.counts.hooks} hooks\n`);
+
+    if (result.actions.length > 0) {
+      console.log('Actions:');
+      for (const a of result.actions) console.log(`  • ${a}`);
+    }
+
+    if (result.warnings.length > 0) {
+      console.log('\nWarnings:');
+      for (const w of result.warnings) console.log(`  ⚠ ${w}`);
+    }
+
+    if (!check) {
+      console.log('\nUpgrade complete.');
+    }
+  },
+
+  /**
    * Show help
    */
   help() {
@@ -623,6 +662,7 @@ COMMANDS:
   team-reconcile      Update BOTS state on team task completion
   team-pending        Check pending tasks for a teammate
   team-status         Show team mode status
+  upgrade <src> [--check]  Upgrade installation from source repo
   help                Show this help
 
 SHORTCODE SYNTAX:

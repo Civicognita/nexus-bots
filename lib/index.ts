@@ -178,6 +178,12 @@ export {
   type TeammateSpawnInfo
 } from './team-orchestrator.js';
 
+// Upgrade - installation upgrade from source
+export {
+  upgrade,
+  type UpgradeResult
+} from './upgrade.js';
+
 // Monitor - background job tracking
 export {
   runMonitorCycle,
