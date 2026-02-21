@@ -71,13 +71,33 @@ if (-not (Test-Path "$ProjectRoot/.bots/state/taskmaster.json")) {
     Copy-Item "$BotsSrc/templates/taskmaster.json" "$ProjectRoot/.bots/state/taskmaster.json"
     Ok "  Created taskmaster.json"
 } else {
-    Warn "  taskmaster.json already exists, skipping"
+    # Merge: add new fields from template, preserve user data (wip, routing, enforced_chains)
+    try {
+        $tmpl = Get-Content "$BotsSrc/templates/taskmaster.json" -Raw | ConvertFrom-Json
+        $existing = Get-Content "$ProjectRoot/.bots/state/taskmaster.json" -Raw | ConvertFrom-Json
+        $preserve = @("wip", "routing", "enforced_chains", "dispatch_rules")
+        $added = 0
+        foreach ($key in $tmpl.PSObject.Properties.Name) {
+            if ($preserve -contains $key) { continue }
+            if (-not $existing.PSObject.Properties[$key]) {
+                $existing | Add-Member -NotePropertyName $key -NotePropertyValue $tmpl.$key
+                $added++
+            }
+        }
+        $existing.version = $tmpl.version
+        $existing | ConvertTo-Json -Depth 20 | Set-Content "$ProjectRoot/.bots/state/taskmaster.json"
+        if ($added -gt 0) { Ok "  Merged $added new fields into taskmaster.json" }
+        else { Ok "  taskmaster.json up to date" }
+    } catch {
+        Warn "  Could not merge taskmaster.json"
+    }
 }
 if (-not (Test-Path "$ProjectRoot/.bots/state/spawn-config.json")) {
     Copy-Item "$BotsSrc/templates/spawn-config.json" "$ProjectRoot/.bots/state/spawn-config.json"
     Ok "  Created spawn-config.json"
 } else {
-    Warn "  spawn-config.json already exists, skipping"
+    Copy-Item "$BotsSrc/templates/spawn-config.json" "$ProjectRoot/.bots/state/spawn-config.json" -Force
+    Ok "  Updated spawn-config.json"
 }
 
 # Step 7: Install npm dev dependencies
@@ -107,13 +127,11 @@ if (Test-Path "$ProjectRoot/package.json") {
     Info "Adding npm scripts..."
     $pkg = Get-Content "$ProjectRoot/package.json" -Raw | ConvertFrom-Json
     if (-not $pkg.scripts) { $pkg | Add-Member -NotePropertyName scripts -NotePropertyValue @{} }
-    if (-not $pkg.scripts.tm) {
-        $pkg.scripts | Add-Member -NotePropertyName tm -NotePropertyValue "npx tsx .bots/lib/cli.ts" -Force
-        $pkg.scripts | Add-Member -NotePropertyName "tm:status" -NotePropertyValue "npx tsx .bots/lib/cli.ts status" -Force
-        $pkg.scripts | Add-Member -NotePropertyName "tm:jobs" -NotePropertyValue "npx tsx .bots/lib/cli.ts jobs" -Force
-        $pkg | ConvertTo-Json -Depth 10 | Set-Content "$ProjectRoot/package.json"
-        Ok "  Added tm, tm:status, tm:jobs scripts"
-    }
+    $pkg.scripts | Add-Member -NotePropertyName tm -NotePropertyValue "npx tsx .bots/lib/cli.ts" -Force
+    $pkg.scripts | Add-Member -NotePropertyName "tm:status" -NotePropertyValue "npx tsx .bots/lib/cli.ts status" -Force
+    $pkg.scripts | Add-Member -NotePropertyName "tm:jobs" -NotePropertyValue "npx tsx .bots/lib/cli.ts jobs" -Force
+    $pkg | ConvertTo-Json -Depth 10 | Set-Content "$ProjectRoot/package.json"
+    Ok "  Set tm, tm:status, tm:jobs scripts"
 }
 
 # Step 8: Install hooks
@@ -125,47 +143,44 @@ Copy-Item "$BotsSrc/hooks/team-idle.sh" "$ProjectRoot/scripts/team-idle.sh" -For
 $settingsFile = "$ProjectRoot/.claude/settings.local.json"
 if (Test-Path $settingsFile) {
     $settings = Get-Content $settingsFile -Raw | ConvertFrom-Json
-    $hasHook = $false
-    if ($settings.hooks -and $settings.hooks.UserPromptSubmit) {
-        foreach ($h in $settings.hooks.UserPromptSubmit) {
-            # Check nested hooks array format
-            if ($h.hooks) {
-                foreach ($inner in $h.hooks) {
-                    if ($inner.command -match "taskmaster-hook") { $hasHook = $true }
-                }
-            }
-            # Also check legacy flat format for backwards compatibility
-            if ($h.command -match "taskmaster-hook") { $hasHook = $true }
+    if (-not $settings.hooks) { $settings | Add-Member -NotePropertyName hooks -NotePropertyValue @{} }
+    $added = 0
+
+    # Helper: check if hook array contains a command matching pattern
+    function Test-HookPresent($hookArray, $pattern) {
+        foreach ($h in $hookArray) {
+            if ($h.hooks) { foreach ($inner in $h.hooks) { if ($inner.command -match $pattern) { return $true } } }
+            if ($h.command -match $pattern) { return $true }
         }
+        return $false
     }
-    if (-not $hasHook) {
-        if (-not $settings.hooks) { $settings | Add-Member -NotePropertyName hooks -NotePropertyValue @{} }
-        if (-not $settings.hooks.UserPromptSubmit) { $settings.hooks | Add-Member -NotePropertyName UserPromptSubmit -NotePropertyValue @() -Force }
-        # Claude Code requires nested { hooks: [...] } format per settings schema
+
+    # UserPromptSubmit hook
+    if (-not $settings.hooks.UserPromptSubmit) { $settings.hooks | Add-Member -NotePropertyName UserPromptSubmit -NotePropertyValue @() -Force }
+    if (-not (Test-HookPresent $settings.hooks.UserPromptSubmit "taskmaster-hook")) {
         $settings.hooks.UserPromptSubmit += @{ hooks = @( @{ type = "command"; command = "bash scripts/taskmaster-hook.sh" } ) }
+        $added++
     }
-    # Register team hooks
+
+    # TaskCompleted hook
     if (-not $settings.hooks.TaskCompleted) { $settings.hooks | Add-Member -NotePropertyName TaskCompleted -NotePropertyValue @() -Force }
-    $hasTaskCompleted = $false
-    foreach ($h in $settings.hooks.TaskCompleted) {
-        if ($h.hooks) { foreach ($inner in $h.hooks) { if ($inner.command -match "team-task-completed") { $hasTaskCompleted = $true } } }
-    }
-    if (-not $hasTaskCompleted) {
+    if (-not (Test-HookPresent $settings.hooks.TaskCompleted "team-task-completed")) {
         $settings.hooks.TaskCompleted += @{ hooks = @( @{ type = "command"; command = "bash scripts/team-task-completed.sh" } ) }
+        $added++
     }
+
+    # TeammateIdle hook
     if (-not $settings.hooks.TeammateIdle) { $settings.hooks | Add-Member -NotePropertyName TeammateIdle -NotePropertyValue @() -Force }
-    $hasTeammateIdle = $false
-    foreach ($h in $settings.hooks.TeammateIdle) {
-        if ($h.hooks) { foreach ($inner in $h.hooks) { if ($inner.command -match "team-idle") { $hasTeammateIdle = $true } } }
-    }
-    if (-not $hasTeammateIdle) {
+    if (-not (Test-HookPresent $settings.hooks.TeammateIdle "team-idle")) {
         $settings.hooks.TeammateIdle += @{ hooks = @( @{ type = "command"; command = "bash scripts/team-idle.sh" } ) }
+        $added++
     }
+
     # Enable agent teams experimental flag
     if (-not $settings.env) { $settings | Add-Member -NotePropertyName env -NotePropertyValue @{} }
     $settings.env | Add-Member -NotePropertyName CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS -NotePropertyValue "1" -Force
     $settings | ConvertTo-Json -Depth 10 | Set-Content $settingsFile
-    if (-not $hasHook) { Ok "  Hooks registered" } else { Ok "  Hooks already registered (team hooks updated)" }
+    if ($added -gt 0) { Ok "  Registered $added new hook(s)" } else { Ok "  All hooks already registered" }
 } else {
     # Claude Code requires nested { hooks: [...] } format per settings schema
     @{
@@ -190,17 +205,39 @@ if (Test-Path $settingsFile) {
 # Step 9: Update CLAUDE.md
 Info "Updating CLAUDE.md..."
 $claudeMd = "$ProjectRoot/CLAUDE.md"
+$botsTemplate = Get-Content "$BotsSrc/templates/TASKMASTER.md" -Raw
 if (Test-Path $claudeMd) {
     $content = Get-Content $claudeMd -Raw
     if ($content -match "BOTS.*Bolt-On Taskmaster") {
-        Ok "  BOTS section already present"
+        # Replace existing BOTS section with latest template
+        $botsStart = $content.IndexOf(($content | Select-String -Pattern "(?m)^#+\s+BOTS\b").Matches[0].Value)
+        if ($botsStart -ge 0) {
+            # Find the heading level of the BOTS section
+            $botsHeading = ($content.Substring($botsStart) | Select-String -Pattern "^(#+)").Matches[0].Groups[1].Value
+            $level = $botsHeading.Length
+            # Find next same-or-higher-level heading after BOTS
+            $afterBots = $content.Substring($botsStart + 1)
+            $nextHeading = $afterBots | Select-String -Pattern "(?m)^#{1,$level}\s+(?!BOTS\b)"
+            if ($nextHeading) {
+                $botsEnd = $botsStart + 1 + $nextHeading.Matches[0].Index
+                $before = $content.Substring(0, $botsStart)
+                $after = $content.Substring($botsEnd)
+                Set-Content $claudeMd ($before + $botsTemplate.TrimEnd() + "`n" + $after) -NoNewline
+            } else {
+                $before = $content.Substring(0, $botsStart)
+                Set-Content $claudeMd ($before + $botsTemplate.TrimEnd() + "`n") -NoNewline
+            }
+            Ok "  Updated BOTS section in CLAUDE.md"
+        } else {
+            Add-Content $claudeMd "`n$botsTemplate"
+            Ok "  Appended BOTS section (could not find section start)"
+        }
     } else {
-        $botsSection = Get-Content "$BotsSrc/templates/TASKMASTER.md" -Raw
-        Add-Content $claudeMd "`n$botsSection"
+        Add-Content $claudeMd "`n$botsTemplate"
         Ok "  Appended BOTS section"
     }
 } else {
-    Copy-Item "$BotsSrc/templates/TASKMASTER.md" $claudeMd
+    Set-Content $claudeMd $botsTemplate
     Ok "  Created CLAUDE.md with BOTS section"
 }
 

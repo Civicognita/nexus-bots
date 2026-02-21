@@ -191,11 +191,25 @@ function updateClaudeMd(projectRoot: string, sourcePath: string, check: boolean)
 
   if (fs.existsSync(claudeMd)) {
     const content = fs.readFileSync(claudeMd, 'utf-8');
+    const template = fs.readFileSync(templatePath, 'utf-8');
     if (content.includes('BOTS') && content.includes('Bolt-On Taskmaster')) {
-      return null; // already present
+      // Replace existing BOTS section with latest template
+      const botsMatch = content.match(/^(#+)\s+BOTS\b/m);
+      if (botsMatch) {
+        const botsStart = content.indexOf(botsMatch[0]);
+        const level = botsMatch[1].length;
+        const pattern = new RegExp(`^#{1,${level}}\\s+(?!BOTS\\b)`, 'm');
+        const afterBots = content.substring(botsStart + 1).search(pattern);
+        const botsEnd = afterBots === -1 ? content.length : botsStart + 1 + afterBots;
+        if (!check) {
+          const before = content.substring(0, botsStart);
+          const after = content.substring(botsEnd);
+          fs.writeFileSync(claudeMd, before + template.trimEnd() + '\n' + after);
+        }
+        return 'Updated BOTS section in CLAUDE.md';
+      }
     }
     if (!check) {
-      const template = fs.readFileSync(templatePath, 'utf-8');
       fs.appendFileSync(claudeMd, '\n' + template);
     }
     return 'Appended BOTS section to CLAUDE.md';

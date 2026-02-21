@@ -108,14 +108,30 @@ if [ ! -f "$PROJECT_ROOT/.bots/state/taskmaster.json" ]; then
   cp "$BOTS_SRC/templates/taskmaster.json" "$PROJECT_ROOT/.bots/state/taskmaster.json"
   ok "  Created taskmaster.json"
 else
-  warn "  taskmaster.json already exists, skipping"
+  # Merge: add new fields from template, preserve user data (wip, routing, enforced_chains)
+  node -e "
+    const fs = require('fs');
+    const tmpl = JSON.parse(fs.readFileSync('$BOTS_SRC/templates/taskmaster.json', 'utf-8'));
+    const existing = JSON.parse(fs.readFileSync('$PROJECT_ROOT/.bots/state/taskmaster.json', 'utf-8'));
+    const preserve = ['wip', 'routing', 'enforced_chains', 'dispatch_rules'];
+    let added = 0;
+    for (const key of Object.keys(tmpl)) {
+      if (preserve.includes(key)) continue;
+      if (!(key in existing)) { existing[key] = tmpl[key]; added++; }
+    }
+    existing.version = tmpl.version;
+    fs.writeFileSync('$PROJECT_ROOT/.bots/state/taskmaster.json', JSON.stringify(existing, null, 2) + '\n');
+    if (added > 0) console.log('  Merged ' + added + ' new fields into taskmaster.json');
+    else console.log('  taskmaster.json up to date');
+  " 2>/dev/null || warn "  Could not merge taskmaster.json"
 fi
 
 if [ ! -f "$PROJECT_ROOT/.bots/state/spawn-config.json" ]; then
   cp "$BOTS_SRC/templates/spawn-config.json" "$PROJECT_ROOT/.bots/state/spawn-config.json"
   ok "  Created spawn-config.json"
 else
-  warn "  spawn-config.json already exists, skipping"
+  cp "$BOTS_SRC/templates/spawn-config.json" "$PROJECT_ROOT/.bots/state/spawn-config.json"
+  ok "  Updated spawn-config.json"
 fi
 
 # ============================================================================
@@ -147,15 +163,11 @@ if [ -f "$PROJECT_ROOT/package.json" ]; then
       const fs = require('fs');
       const pkg = JSON.parse(fs.readFileSync('package.json', 'utf-8'));
       pkg.scripts = pkg.scripts || {};
-      if (!pkg.scripts.tm) {
-        pkg.scripts.tm = 'npx tsx .bots/lib/cli.ts';
-        pkg.scripts['tm:status'] = 'npx tsx .bots/lib/cli.ts status';
-        pkg.scripts['tm:jobs'] = 'npx tsx .bots/lib/cli.ts jobs';
-        fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
-        console.log('  Added tm, tm:status, tm:jobs scripts');
-      } else {
-        console.log('  tm script already exists, skipping');
-      }
+      pkg.scripts.tm = 'npx tsx .bots/lib/cli.ts';
+      pkg.scripts['tm:status'] = 'npx tsx .bots/lib/cli.ts status';
+      pkg.scripts['tm:jobs'] = 'npx tsx .bots/lib/cli.ts jobs';
+      fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+      console.log('  Set tm, tm:status, tm:jobs scripts');
     " 2>/dev/null || warn "  Could not add npm scripts — add manually"
   fi
 else
@@ -178,42 +190,43 @@ chmod +x "$PROJECT_ROOT/scripts/team-idle.sh"
 # Register hook in .claude/settings.local.json
 SETTINGS_FILE="$PROJECT_ROOT/.claude/settings.local.json"
 if [ -f "$SETTINGS_FILE" ]; then
-  # Check if hook already registered
-  if grep -q "taskmaster-hook" "$SETTINGS_FILE" 2>/dev/null; then
-    ok "  Hook already registered"
-  else
-    # Add hooks to existing settings (Claude Code requires nested { hooks: [...] } format)
-    node -e "
-      const fs = require('fs');
-      const settings = JSON.parse(fs.readFileSync('$SETTINGS_FILE', 'utf-8'));
-      settings.hooks = settings.hooks || {};
-      // UserPromptSubmit hook
-      settings.hooks.UserPromptSubmit = settings.hooks.UserPromptSubmit || [];
-      if (!JSON.stringify(settings.hooks.UserPromptSubmit).includes('taskmaster-hook')) {
-        settings.hooks.UserPromptSubmit.push({
-          hooks: [{ type: 'command', command: 'bash scripts/taskmaster-hook.sh' }]
-        });
-      }
-      // TaskCompleted hook (team mode)
-      settings.hooks.TaskCompleted = settings.hooks.TaskCompleted || [];
-      if (!JSON.stringify(settings.hooks.TaskCompleted).includes('team-task-completed')) {
-        settings.hooks.TaskCompleted.push({
-          hooks: [{ type: 'command', command: 'bash scripts/team-task-completed.sh' }]
-        });
-      }
-      // TeammateIdle hook (team mode)
-      settings.hooks.TeammateIdle = settings.hooks.TeammateIdle || [];
-      if (!JSON.stringify(settings.hooks.TeammateIdle).includes('team-idle')) {
-        settings.hooks.TeammateIdle.push({
-          hooks: [{ type: 'command', command: 'bash scripts/team-idle.sh' }]
-        });
-      }
-      // Enable agent teams experimental flag
-      settings.env = settings.env || {};
-      settings.env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = '1';
-      fs.writeFileSync('$SETTINGS_FILE', JSON.stringify(settings, null, 2) + '\n');
-    " 2>/dev/null && ok "  Hooks registered in settings.local.json" || warn "  Could not register hooks — add manually"
-  fi
+  # Ensure all hooks are registered (adds missing ones, preserves existing)
+  node -e "
+    const fs = require('fs');
+    const settings = JSON.parse(fs.readFileSync('$SETTINGS_FILE', 'utf-8'));
+    settings.hooks = settings.hooks || {};
+    let added = 0;
+    // UserPromptSubmit hook
+    settings.hooks.UserPromptSubmit = settings.hooks.UserPromptSubmit || [];
+    if (!JSON.stringify(settings.hooks.UserPromptSubmit).includes('taskmaster-hook')) {
+      settings.hooks.UserPromptSubmit.push({
+        hooks: [{ type: 'command', command: 'bash scripts/taskmaster-hook.sh' }]
+      });
+      added++;
+    }
+    // TaskCompleted hook (team mode)
+    settings.hooks.TaskCompleted = settings.hooks.TaskCompleted || [];
+    if (!JSON.stringify(settings.hooks.TaskCompleted).includes('team-task-completed')) {
+      settings.hooks.TaskCompleted.push({
+        hooks: [{ type: 'command', command: 'bash scripts/team-task-completed.sh' }]
+      });
+      added++;
+    }
+    // TeammateIdle hook (team mode)
+    settings.hooks.TeammateIdle = settings.hooks.TeammateIdle || [];
+    if (!JSON.stringify(settings.hooks.TeammateIdle).includes('team-idle')) {
+      settings.hooks.TeammateIdle.push({
+        hooks: [{ type: 'command', command: 'bash scripts/team-idle.sh' }]
+      });
+      added++;
+    }
+    // Enable agent teams experimental flag
+    settings.env = settings.env || {};
+    settings.env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = '1';
+    fs.writeFileSync('$SETTINGS_FILE', JSON.stringify(settings, null, 2) + '\n');
+    if (added > 0) console.log('  Registered ' + added + ' new hook(s)');
+    else console.log('  All hooks already registered');
+  " 2>/dev/null || warn "  Could not register hooks — add manually"
 else
   # Create settings file with hooks
   cat > "$SETTINGS_FILE" << 'SETTINGS_EOF'
@@ -264,16 +277,40 @@ fi
 
 info "Updating CLAUDE.md..."
 CLAUDE_MD="$PROJECT_ROOT/CLAUDE.md"
+BOTS_TEMPLATE="$BOTS_SRC/templates/TASKMASTER.md"
 if [ -f "$CLAUDE_MD" ]; then
   if grep -q "BOTS.*Bolt-On Taskmaster" "$CLAUDE_MD" 2>/dev/null; then
-    ok "  BOTS section already present in CLAUDE.md"
+    # Replace existing BOTS section with latest template
+    node -e "
+      const fs = require('fs');
+      const content = fs.readFileSync('$CLAUDE_MD', 'utf-8');
+      const template = fs.readFileSync('$BOTS_TEMPLATE', 'utf-8');
+      // Find BOTS section start (## BOTS or # BOTS header)
+      const botsStart = content.search(/^#+\s+BOTS\b/m);
+      if (botsStart === -1) { process.exit(1); }
+      // Find next same-or-higher-level heading after BOTS section
+      const headerMatch = content.substring(0, botsStart).match(/^(#+)\s/m) || content.substring(botsStart).match(/^(#+)\s/m);
+      const level = headerMatch ? headerMatch[1].length : 2;
+      const pattern = new RegExp('^#{1,' + level + '}\\\\s+(?!BOTS\\\\b)', 'm');
+      const afterBots = content.substring(botsStart + 1).search(pattern);
+      const botsEnd = afterBots === -1 ? content.length : botsStart + 1 + afterBots;
+      const before = content.substring(0, botsStart);
+      const after = content.substring(botsEnd);
+      fs.writeFileSync('$CLAUDE_MD', before + template.trim() + '\\n' + after);
+      console.log('  Updated BOTS section in CLAUDE.md');
+    " 2>/dev/null || {
+      # Fallback: just append if replacement failed
+      echo "" >> "$CLAUDE_MD"
+      cat "$BOTS_TEMPLATE" >> "$CLAUDE_MD"
+      ok "  Appended BOTS section to CLAUDE.md (replacement failed, appended instead)"
+    }
   else
     echo "" >> "$CLAUDE_MD"
-    cat "$BOTS_SRC/templates/TASKMASTER.md" >> "$CLAUDE_MD"
+    cat "$BOTS_TEMPLATE" >> "$CLAUDE_MD"
     ok "  Appended BOTS section to CLAUDE.md"
   fi
 else
-  cp "$BOTS_SRC/templates/TASKMASTER.md" "$CLAUDE_MD"
+  cp "$BOTS_TEMPLATE" "$CLAUDE_MD"
   ok "  Created CLAUDE.md with BOTS section"
 fi
 
