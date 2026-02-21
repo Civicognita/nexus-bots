@@ -129,6 +129,16 @@ export {
   type SyncOperation
 } from './project-integration.js';
 
+// Integration implementations
+export { TynnIntegration } from './integrations/tynn.js';
+export { NexusIntegration } from './integrations/nexus.js';
+export {
+  detectIntegration,
+  autoDetectAndSet,
+  getStatePath,
+  type DetectedIntegration
+} from './integrations/detect.js';
+
 // Orchestrator - autonomous work management
 export {
   orchestrate,

@@ -29,6 +29,7 @@ import {
 import { evaluateGate, GateDecision } from './gates.js';
 import { createWorktree, WorktreeCreateResult } from './worktree.js';
 import { isBound, getSyncOperation } from './project-integration.js';
+import { autoDetectAndSet, getStatePath } from './integrations/detect.js';
 
 // ============================================================================
 // Types
@@ -83,7 +84,9 @@ export interface OrchestratorResult {
 // Paths
 // ============================================================================
 
-const PENDING_WORK_PATH = path.join(process.cwd(), '.bots', 'state', 'pending-work.json');
+function getPendingWorkPath(): string {
+  return getStatePath('pending-work.json');
+}
 const CHECKPOINT_DIR = path.join(process.cwd(), '.ai', 'checkpoints');
 
 function ensureDir(dir: string): void {
@@ -98,16 +101,16 @@ function ensureDir(dir: string): void {
 
 export function loadPendingWork(): PendingWork {
   try {
-    if (fs.existsSync(PENDING_WORK_PATH)) {
-      return JSON.parse(fs.readFileSync(PENDING_WORK_PATH, 'utf-8'));
+    if (fs.existsSync(getPendingWorkPath())) {
+      return JSON.parse(fs.readFileSync(getPendingWorkPath(), 'utf-8'));
     }
   } catch {}
   return { jobs: [], timestamp: new Date().toISOString() };
 }
 
 export function savePendingWork(work: PendingWork): void {
-  ensureDir(path.dirname(PENDING_WORK_PATH));
-  fs.writeFileSync(PENDING_WORK_PATH, JSON.stringify(work, null, 2), 'utf-8');
+  ensureDir(path.dirname(getPendingWorkPath()));
+  fs.writeFileSync(getPendingWorkPath(), JSON.stringify(work, null, 2), 'utf-8');
 }
 
 export function queueJob(jobId: string, action: PendingJob['action']): void {
@@ -120,8 +123,8 @@ export function queueJob(jobId: string, action: PendingJob['action']): void {
 }
 
 export function clearPendingWork(): void {
-  if (fs.existsSync(PENDING_WORK_PATH)) {
-    fs.unlinkSync(PENDING_WORK_PATH);
+  if (fs.existsSync(getPendingWorkPath())) {
+    fs.unlinkSync(getPendingWorkPath());
   }
 }
 
@@ -164,7 +167,7 @@ function buildWorkerPrompt(
   }
 
   // Get allowed tools from spawn config
-  const configPath = path.join(process.cwd(), '.bots', 'state', 'spawn-config.json');
+  const configPath = getStatePath('spawn-config.json');
   let allowedTools = ['Read', 'Glob', 'Grep', 'Write', 'Edit', 'Bash'];
   try {
     const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
@@ -425,6 +428,7 @@ export function formatResult(result: OrchestratorResult): string {
 // ============================================================================
 
 if (typeof require !== 'undefined' && require.main === module) {
+  autoDetectAndSet();
   const action = process.argv[2] || 'run';
 
   switch (action) {

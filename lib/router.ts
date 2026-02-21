@@ -7,6 +7,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { getStatePath } from './integrations/detect.js';
 
 export interface RoutingRule {
   description: string;
@@ -25,11 +26,11 @@ export interface RouteMatch {
 let routingRulesCache: Record<string, RoutingRule> | null = null;
 
 /**
- * Resolve the BOTS state directory.
- * Looks for .bots/state/ relative to the project root.
+ * Resolve the BOTS state file path.
+ * Uses integration-aware path resolution.
  */
 function getBotsStatePath(): string {
-  return path.join(process.cwd(), '.bots', 'state', 'taskmaster.json');
+  return getStatePath('taskmaster.json');
 }
 
 /**

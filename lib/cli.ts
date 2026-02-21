@@ -65,6 +65,7 @@ import {
   parseReferences,
   getSyncOperation
 } from './project-integration.js';
+import { autoDetectAndSet } from './integrations/detect.js';
 import {
   orchestrate,
   generateTaskCalls,
@@ -445,6 +446,14 @@ const commands: Record<string, (args: string[]) => void> = {
   },
 
   /**
+   * Detect which integration is active
+   */
+  detect() {
+    const type = autoDetectAndSet();
+    output({ integration: type });
+  },
+
+  /**
    * Show help
    */
   help() {
@@ -469,6 +478,7 @@ COMMANDS:
   monitor             Check job/worker status
   complete <id>       Complete job (merge + cleanup)
   archive <id>        Archive job handoffs
+  detect              Show detected integration (nexus/tynn/noop)
   help                Show this help
 
 SHORTCODE SYNTAX:
@@ -532,6 +542,9 @@ function readStdin(): string {
 // ============================================================================
 
 function main(): void {
+  // Auto-detect integration at CLI boot
+  autoDetectAndSet();
+
   const args = process.argv.slice(2);
   const command = args[0] || 'help';
   const commandArgs = args.slice(1);

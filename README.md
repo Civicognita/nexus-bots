@@ -136,9 +136,44 @@ Some workers automatically trigger follow-up workers:
 | `checkpoint` | Pause for user review |
 | `terminal` | Job complete, offer merge |
 
-## Project Integration
+## Integrations
 
-BOTS works standalone by default. To integrate with a project management tool, implement the `ProjectIntegration` interface:
+BOTS auto-detects your project environment and activates the right integration at startup. No manual setup required.
+
+### Auto-Detection
+
+| Priority | Integration | Detection Signal | What it does |
+|----------|-------------|------------------|--------------|
+| 1 | **Nexus** | `.nexus/core/GOSPEL.md` + `.ai/.nexus/` dir | Tynn sync + COA tracking, BAIF state gating, `.ai/.nexus/` paths |
+| 2 | **Tynn** | `"tynn"` in `.claude/settings.local.json` MCP config | Syncs job status to Tynn tasks, parses `#T123`/`@task:ULID` references |
+| 3 | **NoOp** | Neither detected | Standalone mode, no PM sync |
+
+Check which integration is active:
+```bash
+npm run tm detect
+```
+
+### Tynn Integration
+
+When Tynn MCP is detected, BOTS automatically:
+- Parses task references from queue text (`#T42`, `@task:01HXYZ`, `#S5`, `@story:ULID`)
+- Syncs job lifecycle to Tynn task status:
+  - `running` -> `mcp__tynn__starting`
+  - `checkpoint` -> `mcp__tynn__testing`
+  - `complete` -> `mcp__tynn__finished`
+  - `failed` -> `mcp__tynn__block`
+- Posts phase completion comments to bound Tynn tasks
+
+### Nexus Integration
+
+Extends Tynn with Nexus-specific features:
+- **Path override** — State files at `.ai/.nexus/` instead of `.bots/state/`
+- **COA chain tracking** — Worker COA extension metadata on bindings
+- **BAIF state gating** — Remote sync operations skipped when STATE != ONLINE
+
+### Manual Override
+
+To use a custom integration, call `setIntegration()` before any BOTS operations:
 
 ```typescript
 import { setIntegration, ProjectIntegration } from '.bots/lib/project-integration.js';

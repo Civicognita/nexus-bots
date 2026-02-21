@@ -8,6 +8,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { findRoute, RouteMatch } from './router.js';
+import { getStatePath } from './integrations/detect.js';
 
 // Forward declaration - project-integration imports job-manager, so we lazy-load
 let projectIntegration: typeof import('./project-integration.js') | null = null;
@@ -88,7 +89,7 @@ export interface TaskmasterState {
 // ============================================================================
 
 function getDefaultConfigPath(): string {
-  return path.join(process.cwd(), '.bots', 'state', 'taskmaster.json');
+  return getStatePath('taskmaster.json');
 }
 
 /**
