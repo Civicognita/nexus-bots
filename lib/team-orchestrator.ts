@@ -190,25 +190,43 @@ function processRunningTeamJob(
 /**
  * Generate structured text instructions for the team lead.
  *
- * The lead uses these to create tasks, wire dependencies, and
- * spawn teammates via the agent teams API.
+ * The lead uses these to create an agent team, populate the shared
+ * task list, wire dependencies, and spawn teammates.
  */
 export function generateTeamLeadInstructions(
   result: TeamOrchestratorResult
 ): string {
   const lines: string[] = [];
+  let step = 1;
 
   lines.push('# BOTS Team Orchestration');
   lines.push('');
   lines.push(`Team: **${result.teamName}**`);
-  lines.push(`Tasks to create: **${result.tasksCreated.length}**`);
-  lines.push(`Teammates to spawn: **${result.teammatesNeeded.length}**`);
+  lines.push(`Tasks: **${result.tasksCreated.length}**`);
+  lines.push(`Teammates: **${result.teammatesNeeded.length}**`);
   lines.push('');
 
-  if (result.tasksCreated.length > 0) {
-    lines.push('## Step 1: Create Tasks');
+  // Step: Create agent team and spawn teammates
+  if (result.teammatesNeeded.length > 0) {
+    lines.push(`## Step ${step++}: Create Agent Team`);
     lines.push('');
-    lines.push('Create these tasks using `TaskCreate`:');
+    lines.push(`Create an agent team named **${result.teamName}** with the following teammates:`);
+    lines.push('');
+
+    for (const tm of result.teammatesNeeded) {
+      const planNote = tm.planApproval ? ' Require plan approval before they make changes.' : '';
+      lines.push(`- **${tm.name}** — use ${tm.model || 'sonnet'} model.${planNote}`);
+    }
+    lines.push('');
+    lines.push('Spawn each teammate with their BOTS worker prompt (provided below).');
+    lines.push('');
+  }
+
+  // Step: Create tasks in shared task list
+  if (result.tasksCreated.length > 0) {
+    lines.push(`## Step ${step++}: Create Tasks`);
+    lines.push('');
+    lines.push('Add these tasks to the shared task list using `TaskCreate`:');
     lines.push('');
 
     for (const task of result.tasksCreated) {
@@ -228,7 +246,7 @@ export function generateTeamLeadInstructions(
     // Dependency wiring instructions
     const tasksWithDeps = result.tasksCreated.filter(t => t.blockedBy.length > 0);
     if (tasksWithDeps.length > 0) {
-      lines.push('## Step 2: Wire Dependencies');
+      lines.push(`## Step ${step++}: Wire Dependencies`);
       lines.push('');
       lines.push('After creating tasks, wire `blockedBy` using `TaskUpdate`:');
       lines.push('');
@@ -242,17 +260,43 @@ export function generateTeamLeadInstructions(
     }
   }
 
+  // Step: Teammate prompts
   if (result.teammatesNeeded.length > 0) {
-    lines.push(`## Step ${result.tasksCreated.some(t => t.blockedBy.length > 0) ? '3' : '2'}: Spawn Teammates`);
+    lines.push(`## Step ${step++}: Teammate Spawn Prompts`);
+    lines.push('');
+    lines.push('Use these prompts when spawning each teammate:');
     lines.push('');
 
     for (const tm of result.teammatesNeeded) {
       lines.push(`### ${tm.name}`);
-      lines.push(`- Model: ${tm.model || 'sonnet'}`);
-      lines.push(`- Plan approval: ${tm.planApproval}`);
+      lines.push('');
+      lines.push('<details>');
+      lines.push(`<summary>Spawn prompt for ${tm.name}</summary>`);
+      lines.push('');
+      lines.push('```');
+      lines.push(tm.prompt.substring(0, 2000) + (tm.prompt.length > 2000 ? '\n...(truncated)' : ''));
+      lines.push('```');
+      lines.push('</details>');
       lines.push('');
     }
   }
+
+  // Gate enforcement note
+  lines.push('## Gate Enforcement');
+  lines.push('');
+  lines.push('Gates are enforced automatically via the `TaskCompleted` hook:');
+  lines.push('- **auto** gates: tasks complete normally, next-phase tasks unblock via dependencies');
+  lines.push('- **checkpoint** gates: hook blocks the last task in a phase (exit 2) until `npm run tm approve <jobId>`');
+  lines.push('- **terminal** gates: hook blocks for merge review until `npm run tm complete <jobId>`');
+  lines.push('');
+
+  // Cleanup
+  lines.push('## Cleanup');
+  lines.push('');
+  lines.push('When all jobs are complete and merged, clean up the team:');
+  lines.push('1. Shut down all teammates');
+  lines.push('2. Clean up the team resources');
+  lines.push('');
 
   if (result.errors.length > 0) {
     lines.push('## Errors');
