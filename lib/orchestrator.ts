@@ -30,6 +30,12 @@ import { evaluateGate, GateDecision } from './gates.js';
 import { createWorktree, WorktreeCreateResult } from './worktree.js';
 import { isBound, getSyncOperation } from './project-integration.js';
 import { autoDetectAndSet, getStatePath } from './integrations/detect.js';
+import {
+  orchestrateTeam,
+  formatTeamResult,
+  generateTeamLeadInstructions,
+  type TeamOrchestratorResult
+} from './team-orchestrator.js';
 
 // ============================================================================
 // Types
@@ -213,7 +219,14 @@ function buildWorkerPrompt(
 export function orchestrate(
   parentTid: string = 'BOTS',
   parentCoa: string = 'BOTS.COA'
-): OrchestratorResult {
+): OrchestratorResult | TeamOrchestratorResult {
+  // Check execution mode
+  const state = loadState();
+  const mode = (state as any).mode || process.env.BOTS_MODE || 'subagent';
+  if (mode === 'team') {
+    return orchestrateTeam(parentTid, parentCoa);
+  }
+
   const result: OrchestratorResult = {
     processed: 0,
     spawned: [],
@@ -432,21 +445,32 @@ if (typeof require !== 'undefined' && require.main === module) {
   const action = process.argv[2] || 'run';
 
   switch (action) {
-    case 'run':
+    case 'run': {
       const result = orchestrate();
       console.log(JSON.stringify(result, null, 2));
       break;
+    }
 
-    case 'display':
+    case 'display': {
       const displayResult = orchestrate();
-      console.log(formatResult(displayResult));
+      if ('teamName' in displayResult) {
+        console.log(formatTeamResult(displayResult));
+      } else {
+        console.log(formatResult(displayResult));
+      }
       break;
+    }
 
-    case 'tasks':
+    case 'tasks': {
       const tasksResult = orchestrate();
-      const tasks = generateTaskCalls(tasksResult.spawned);
-      console.log(JSON.stringify(tasks, null, 2));
+      if ('tasksCreated' in tasksResult) {
+        console.log(JSON.stringify(tasksResult.tasksCreated, null, 2));
+      } else {
+        const tasks = generateTaskCalls(tasksResult.spawned);
+        console.log(JSON.stringify(tasks, null, 2));
+      }
       break;
+    }
 
     default:
       console.log('Usage: orchestrator.ts [run|display|tasks]');

@@ -165,9 +165,13 @@ fi
 # Step 8: Install hook
 # ============================================================================
 
-info "Installing hook..."
+info "Installing hooks..."
 cp "$BOTS_SRC/hooks/taskmaster-hook.sh" "$PROJECT_ROOT/scripts/taskmaster-hook.sh"
+cp "$BOTS_SRC/hooks/team-task-completed.sh" "$PROJECT_ROOT/scripts/team-task-completed.sh"
+cp "$BOTS_SRC/hooks/team-idle.sh" "$PROJECT_ROOT/scripts/team-idle.sh"
 chmod +x "$PROJECT_ROOT/scripts/taskmaster-hook.sh"
+chmod +x "$PROJECT_ROOT/scripts/team-task-completed.sh"
+chmod +x "$PROJECT_ROOT/scripts/team-idle.sh"
 
 # Register hook in .claude/settings.local.json
 SETTINGS_FILE="$PROJECT_ROOT/.claude/settings.local.json"
@@ -176,23 +180,40 @@ if [ -f "$SETTINGS_FILE" ]; then
   if grep -q "taskmaster-hook" "$SETTINGS_FILE" 2>/dev/null; then
     ok "  Hook already registered"
   else
-    # Add hook to existing settings (Claude Code requires nested { hooks: [...] } format)
+    # Add hooks to existing settings (Claude Code requires nested { hooks: [...] } format)
     node -e "
       const fs = require('fs');
       const settings = JSON.parse(fs.readFileSync('$SETTINGS_FILE', 'utf-8'));
       settings.hooks = settings.hooks || {};
+      // UserPromptSubmit hook
       settings.hooks.UserPromptSubmit = settings.hooks.UserPromptSubmit || [];
-      settings.hooks.UserPromptSubmit.push({
-        hooks: [{
-          type: 'command',
-          command: 'bash scripts/taskmaster-hook.sh'
-        }]
-      });
+      if (!JSON.stringify(settings.hooks.UserPromptSubmit).includes('taskmaster-hook')) {
+        settings.hooks.UserPromptSubmit.push({
+          hooks: [{ type: 'command', command: 'bash scripts/taskmaster-hook.sh' }]
+        });
+      }
+      // TaskCompleted hook (team mode)
+      settings.hooks.TaskCompleted = settings.hooks.TaskCompleted || [];
+      if (!JSON.stringify(settings.hooks.TaskCompleted).includes('team-task-completed')) {
+        settings.hooks.TaskCompleted.push({
+          hooks: [{ type: 'command', command: 'bash scripts/team-task-completed.sh' }]
+        });
+      }
+      // TeammateIdle hook (team mode)
+      settings.hooks.TeammateIdle = settings.hooks.TeammateIdle || [];
+      if (!JSON.stringify(settings.hooks.TeammateIdle).includes('team-idle')) {
+        settings.hooks.TeammateIdle.push({
+          hooks: [{ type: 'command', command: 'bash scripts/team-idle.sh' }]
+        });
+      }
+      // Enable agent teams experimental flag
+      settings.env = settings.env || {};
+      settings.env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = '1';
       fs.writeFileSync('$SETTINGS_FILE', JSON.stringify(settings, null, 2) + '\n');
-    " 2>/dev/null && ok "  Hook registered in settings.local.json" || warn "  Could not register hook — add manually"
+    " 2>/dev/null && ok "  Hooks registered in settings.local.json" || warn "  Could not register hooks — add manually"
   fi
 else
-  # Create settings file with hook
+  # Create settings file with hooks
   cat > "$SETTINGS_FILE" << 'SETTINGS_EOF'
 {
   "hooks": {
@@ -205,11 +226,34 @@ else
           }
         ]
       }
+    ],
+    "TaskCompleted": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash scripts/team-task-completed.sh"
+          }
+        ]
+      }
+    ],
+    "TeammateIdle": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash scripts/team-idle.sh"
+          }
+        ]
+      }
     ]
+  },
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
   }
 }
 SETTINGS_EOF
-  ok "  Created settings.local.json with hook"
+  ok "  Created settings.local.json with hooks"
 fi
 
 # ============================================================================

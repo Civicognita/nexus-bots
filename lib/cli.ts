@@ -19,6 +19,10 @@
  *   reject <id>       Reject checkpoint
  *   dispatch <id>     Get dispatch info for spawning workers
  *   next              Get/set next frame
+ *   mode [mode]       Get or set execution mode (subagent|team)
+ *   team-reconcile    Update BOTS state when team task completes
+ *   team-pending      Check pending BOTS tasks for a teammate
+ *   team-status       Show team mode status
  */
 
 import * as fs from 'fs';
@@ -77,6 +81,14 @@ import {
   autoCompleteJobs,
   archiveJobHandoffs
 } from './monitor.js';
+import {
+  reconcileTaskCompletion
+} from './team-executor.js';
+import {
+  orchestrateTeam,
+  formatTeamResult,
+  generateTeamLeadInstructions
+} from './team-orchestrator.js';
 
 // ============================================================================
 // CLI Helpers
@@ -394,6 +406,23 @@ const commands: Record<string, (args: string[]) => void> = {
    * Run orchestrator to process all pending work
    */
   orchestrate(args: string[]) {
+    const state = loadState();
+    const mode = state.mode || process.env.BOTS_MODE || 'subagent';
+
+    if (mode === 'team') {
+      const teamResult = orchestrateTeam();
+      if (args.includes('--json')) {
+        output(teamResult);
+      } else if (args.includes('--tasks')) {
+        output(teamResult.tasksCreated);
+      } else if (args.includes('--instructions')) {
+        console.log(generateTeamLeadInstructions(teamResult));
+      } else {
+        console.log(formatTeamResult(teamResult));
+      }
+      return;
+    }
+
     const result = orchestrate();
 
     if (args.includes('--json')) {
@@ -454,6 +483,117 @@ const commands: Record<string, (args: string[]) => void> = {
   },
 
   /**
+   * Get or set execution mode
+   */
+  mode(args: string[]) {
+    const state = loadState();
+    if (args.length === 0) {
+      output({ mode: state.mode || 'subagent' });
+      return;
+    }
+
+    const newMode = args[0];
+    if (newMode !== 'subagent' && newMode !== 'team') {
+      error('Invalid mode. Usage: mode [subagent|team]');
+    }
+
+    (state as any).mode = newMode;
+
+    // Initialize team_config if switching to team mode and not yet set
+    if (newMode === 'team' && !(state as any).team_config) {
+      (state as any).team_config = {
+        team_name: 'bots-team',
+        teammate_mode: 'in-process',
+        max_teammates: 4,
+        require_plan_approval: false
+      };
+    }
+
+    saveState(state);
+    output({ mode: newMode, team_config: (state as any).team_config || null });
+  },
+
+  /**
+   * Update BOTS state when a team task completes (called by TaskCompleted hook)
+   */
+  'team-reconcile'(args: string[]) {
+    const jobId = args[0];
+    const phaseId = args[1];
+    const worker = args[2];
+    const workerTid = args[3];
+
+    if (!jobId || !phaseId || !worker) {
+      error('Usage: team-reconcile <jobId> <phaseId> <worker> [workerTid]');
+    }
+
+    const result = reconcileTaskCompletion(jobId, phaseId, worker, workerTid);
+    output(result);
+  },
+
+  /**
+   * Check pending BOTS tasks for a teammate (called by TeammateIdle hook)
+   */
+  'team-pending'(args: string[]) {
+    const teammateName = args[0];
+    if (!teammateName) {
+      error('Usage: team-pending <teammateName>');
+    }
+
+    // Look through active jobs for tasks assigned to this teammate
+    const jobs = getActiveJobs();
+    let pendingCount = 0;
+    let hasHandoff = true;
+
+    for (const job of jobs) {
+      if (!job.team) continue;
+
+      for (const [tid, taskId] of Object.entries(job.team.taskIds)) {
+        // Check if this teammate name matches the worker tid pattern
+        if (tid.includes(teammateName.replace(/-job-\d+$/, '').replace(/-/g, '.'))) {
+          // Check if handoff file exists
+          const handoffPath = path.join(process.cwd(), '.ai', 'handoff', `${tid}.json`);
+          if (!fs.existsSync(handoffPath)) {
+            pendingCount++;
+            hasHandoff = false;
+          }
+        }
+      }
+    }
+
+    output({ teammate: teammateName, pending: pendingCount, hasHandoff });
+  },
+
+  /**
+   * Show team mode status
+   */
+  'team-status'(args: string[]) {
+    const state = loadState();
+    const mode = state.mode || 'subagent';
+
+    if (mode !== 'team') {
+      output({ mode, message: 'Not in team mode. Use: npm run tm mode team' });
+      return;
+    }
+
+    const jobs = getActiveJobs();
+    const teamJobs = jobs.filter(j => j.team);
+
+    output({
+      mode,
+      team_config: state.team_config || null,
+      active_team_jobs: teamJobs.length,
+      jobs: teamJobs.map(j => ({
+        id: j.id,
+        status: j.status,
+        team: j.team?.teamName,
+        phase: j.currentPhase,
+        tasks: j.team ? Object.keys(j.team.taskIds).length : 0,
+        phaseGroups: j.team?.phaseTaskGroups || {}
+      }))
+    });
+  },
+
+  /**
    * Show help
    */
   help() {
@@ -479,6 +619,10 @@ COMMANDS:
   complete <id>       Complete job (merge + cleanup)
   archive <id>        Archive job handoffs
   detect              Show detected integration (nexus/tynn/noop)
+  mode [subagent|team] Get or set execution mode
+  team-reconcile      Update BOTS state on team task completion
+  team-pending        Check pending tasks for a teammate
+  team-status         Show team mode status
   help                Show this help
 
 SHORTCODE SYNTAX:

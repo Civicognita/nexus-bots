@@ -52,7 +52,10 @@ export {
   type JobPhase,
   type Job,
   type TaskmasterState,
-  type ProjectBinding
+  type ProjectBinding,
+  type ExecutionMode,
+  type TeamConfig,
+  type JobTeamBinding
 } from './job-manager.js';
 
 // Worktree - git worktree management
@@ -154,6 +157,26 @@ export {
   type CheckpointInfo,
   type OrchestratorResult
 } from './orchestrator.js';
+
+// Team Executor - agent team task translation
+export {
+  buildTeamExecutionPlan,
+  buildTeammatePrompt,
+  generateTaskCreates,
+  generateDependencyWiring,
+  reconcileTaskCompletion,
+  type TeamTask,
+  type TeamExecutionPlan
+} from './team-executor.js';
+
+// Team Orchestrator - agent team orchestration
+export {
+  orchestrateTeam,
+  generateTeamLeadInstructions,
+  formatTeamResult,
+  type TeamOrchestratorResult,
+  type TeammateSpawnInfo
+} from './team-orchestrator.js';
 
 // Monitor - background job tracking
 export {

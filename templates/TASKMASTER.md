@@ -62,3 +62,43 @@ npm run tm reject <id>     Reject and stop job
 | writer.*| editor      |
 | modeler | linguist    |
 | auditor | archivist   |
+
+### Team Mode (Experimental)
+
+BOTS supports an alternative **team mode** that uses Claude Code's agent teams feature for richer collaboration between workers.
+
+**Switching modes:**
+```
+npm run tm mode team       # Enable team mode
+npm run tm mode subagent   # Switch back to default
+npm run tm mode            # Show current mode
+```
+
+**How team mode differs from subagent mode:**
+
+| Aspect | Subagent (default) | Team |
+|--------|-------------------|------|
+| Workers | Ephemeral Task tool agents | Persistent teammates |
+| Communication | JSON files only | Shared task list + JSON files |
+| Phase sequencing | Orchestrator loop | Task dependencies (blockedBy) |
+| Gate: auto | `evaluateGate()` proceeds | Tasks unblock automatically |
+| Gate: checkpoint | CLI `approve` command | `TaskCompleted` hook blocks (exit 2) |
+| Gate: terminal | Job complete, merge offered | `TaskCompleted` hook triggers merge review |
+| Monitoring | Filesystem polling | Shared task list is source of truth |
+
+**When hook output contains `<bots-team-orchestrate jobs="..."/>`:**
+1. Run orchestrator: `npx tsx .bots/lib/cli.ts orchestrate --instructions`
+2. Create tasks via `TaskCreate` for each worker in the plan
+3. Wire dependencies via `TaskUpdate` (phase N+1 blocked by phase N)
+4. Spawn teammates with the generated prompts
+5. The `TaskCompleted` hook enforces gates automatically
+
+**Team mode CLI:**
+```
+npm run tm team-status     Show team mode status
+npm run tm mode            Show current execution mode
+```
+
+**Requirements:**
+- `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` must be set
+- `TaskCompleted` and `TeammateIdle` hooks must be registered

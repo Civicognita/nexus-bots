@@ -58,6 +58,12 @@ export interface ProjectBinding {
   }>;
 }
 
+export interface JobTeamBinding {
+  teamName: string;
+  taskIds: Record<string, string>;       // workerTid → team task ID
+  phaseTaskGroups: Record<string, string[]>; // phaseId → task IDs
+}
+
 export interface Job {
   id: string;
   queueText: string;
@@ -73,10 +79,22 @@ export interface Job {
   completedAt?: string;
   error?: string;
   project?: ProjectBinding;
+  team?: JobTeamBinding;
+}
+
+export type ExecutionMode = 'subagent' | 'team';
+
+export interface TeamConfig {
+  team_name: string;
+  teammate_mode: 'in-process' | 'tmux';
+  max_teammates: number;
+  require_plan_approval: boolean;
 }
 
 export interface TaskmasterState {
   version: string;
+  mode?: ExecutionMode;
+  team_config?: TeamConfig;
   wip: {
     jobs: Record<string, Job>;
     next_frame: string | null;

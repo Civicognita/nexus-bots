@@ -114,9 +114,11 @@ if (Test-Path "$ProjectRoot/package.json") {
     }
 }
 
-# Step 8: Install hook
-Info "Installing hook..."
+# Step 8: Install hooks
+Info "Installing hooks..."
 Copy-Item "$BotsSrc/hooks/taskmaster-hook.sh" "$ProjectRoot/scripts/taskmaster-hook.sh" -Force
+Copy-Item "$BotsSrc/hooks/team-task-completed.sh" "$ProjectRoot/scripts/team-task-completed.sh" -Force
+Copy-Item "$BotsSrc/hooks/team-idle.sh" "$ProjectRoot/scripts/team-idle.sh" -Force
 
 $settingsFile = "$ProjectRoot/.claude/settings.local.json"
 if (Test-Path $settingsFile) {
@@ -139,11 +141,29 @@ if (Test-Path $settingsFile) {
         if (-not $settings.hooks.UserPromptSubmit) { $settings.hooks | Add-Member -NotePropertyName UserPromptSubmit -NotePropertyValue @() -Force }
         # Claude Code requires nested { hooks: [...] } format per settings schema
         $settings.hooks.UserPromptSubmit += @{ hooks = @( @{ type = "command"; command = "bash scripts/taskmaster-hook.sh" } ) }
-        $settings | ConvertTo-Json -Depth 10 | Set-Content $settingsFile
-        Ok "  Hook registered"
-    } else {
-        Ok "  Hook already registered"
     }
+    # Register team hooks
+    if (-not $settings.hooks.TaskCompleted) { $settings.hooks | Add-Member -NotePropertyName TaskCompleted -NotePropertyValue @() -Force }
+    $hasTaskCompleted = $false
+    foreach ($h in $settings.hooks.TaskCompleted) {
+        if ($h.hooks) { foreach ($inner in $h.hooks) { if ($inner.command -match "team-task-completed") { $hasTaskCompleted = $true } } }
+    }
+    if (-not $hasTaskCompleted) {
+        $settings.hooks.TaskCompleted += @{ hooks = @( @{ type = "command"; command = "bash scripts/team-task-completed.sh" } ) }
+    }
+    if (-not $settings.hooks.TeammateIdle) { $settings.hooks | Add-Member -NotePropertyName TeammateIdle -NotePropertyValue @() -Force }
+    $hasTeammateIdle = $false
+    foreach ($h in $settings.hooks.TeammateIdle) {
+        if ($h.hooks) { foreach ($inner in $h.hooks) { if ($inner.command -match "team-idle") { $hasTeammateIdle = $true } } }
+    }
+    if (-not $hasTeammateIdle) {
+        $settings.hooks.TeammateIdle += @{ hooks = @( @{ type = "command"; command = "bash scripts/team-idle.sh" } ) }
+    }
+    # Enable agent teams experimental flag
+    if (-not $settings.env) { $settings | Add-Member -NotePropertyName env -NotePropertyValue @{} }
+    $settings.env | Add-Member -NotePropertyName CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS -NotePropertyValue "1" -Force
+    $settings | ConvertTo-Json -Depth 10 | Set-Content $settingsFile
+    if (-not $hasHook) { Ok "  Hooks registered" } else { Ok "  Hooks already registered (team hooks updated)" }
 } else {
     # Claude Code requires nested { hooks: [...] } format per settings schema
     @{
@@ -151,9 +171,18 @@ if (Test-Path $settingsFile) {
             UserPromptSubmit = @(
                 @{ hooks = @( @{ type = "command"; command = "bash scripts/taskmaster-hook.sh" } ) }
             )
+            TaskCompleted = @(
+                @{ hooks = @( @{ type = "command"; command = "bash scripts/team-task-completed.sh" } ) }
+            )
+            TeammateIdle = @(
+                @{ hooks = @( @{ type = "command"; command = "bash scripts/team-idle.sh" } ) }
+            )
+        }
+        env = @{
+            CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1"
         }
     } | ConvertTo-Json -Depth 10 | Set-Content $settingsFile
-    Ok "  Created settings.local.json with hook"
+    Ok "  Created settings.local.json with hooks"
 }
 
 # Step 9: Update CLAUDE.md

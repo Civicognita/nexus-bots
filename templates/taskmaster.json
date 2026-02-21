@@ -1,5 +1,12 @@
 {
-  "version": "1.0.0",
+  "version": "1.1.0",
+  "mode": "subagent",
+  "team_config": {
+    "team_name": "bots-team",
+    "teammate_mode": "in-process",
+    "max_teammates": 4,
+    "require_plan_approval": false
+  },
   "wip": {
     "jobs": {},
     "next_frame": null,

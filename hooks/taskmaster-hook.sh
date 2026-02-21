@@ -47,6 +47,15 @@ if [ "$JOB_COUNT" -gt 0 ] 2>/dev/null; then
   # Extract job IDs
   JOB_IDS=$(echo "$RESULT" | grep -o '"id":"[^"]*"' | sed 's/"id":"//g' | sed 's/"//g' | tr '\n' ' ')
 
+  # Detect execution mode
+  MODE=$(npx tsx -e "
+    const fs = require('fs');
+    try {
+      const state = JSON.parse(fs.readFileSync('.bots/state/taskmaster.json', 'utf-8'));
+      console.log(state.mode || 'subagent');
+    } catch { console.log('subagent'); }
+  " 2>/dev/null || echo "subagent")
+
   # Run orchestrator to prepare workers
   ORCH_RESULT=$(npx tsx .bots/lib/orchestrator.ts run 2>/dev/null) || true
 
@@ -70,7 +79,13 @@ if [ "$JOB_COUNT" -gt 0 ] 2>/dev/null; then
   " 2>/dev/null || true
 
   echo "╠═══════════════════════════════════════════════════════════════╣"
-  echo "║  <bots-auto-spawn jobs=\"$JOB_IDS\"/>                          ║"
+
+  if [ "$MODE" = "team" ]; then
+    echo "║  <bots-team-orchestrate jobs=\"$JOB_IDS\"/>                    ║"
+  else
+    echo "║  <bots-auto-spawn jobs=\"$JOB_IDS\"/>                          ║"
+  fi
+
   echo "╚═══════════════════════════════════════════════════════════════╝"
   echo ""
 fi
