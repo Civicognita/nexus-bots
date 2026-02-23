@@ -96,6 +96,7 @@ export function findRoute(text: string, configPath?: string): RouteMatch | null 
   let bestMatch: RouteMatch | null = null;
 
   for (const [routeName, rule] of Object.entries(rules)) {
+    if (!Array.isArray(rule.keywords)) continue;
     const matchedKeywords: string[] = [];
 
     for (const keyword of rule.keywords) {
