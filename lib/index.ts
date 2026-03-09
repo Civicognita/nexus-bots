@@ -199,6 +199,32 @@ export {
   type WorkerStatus
 } from './monitor.js';
 
+// Runtime - provider-agnostic job execution engine
+export { runJob } from './runtime.js';
+export { compileReport } from './runtime-reports.js';
+export { createSandboxedToolExecutor } from './runtime-tools.js';
+export {
+  sanitizeCoaForFs,
+  fsToCoaFingerprint,
+  type RuntimeInvoker,
+  type RuntimeInvokeParams,
+  type RuntimeContinuation,
+  type RuntimeToolDef,
+  type RuntimeToolCall,
+  type RuntimeToolResult,
+  type RuntimeMessage,
+  type RuntimeContentBlock,
+  type RuntimeResponse,
+  type RuntimeToolExecutor,
+  type RuntimeConfig,
+  type RuntimeResult,
+  type RuntimePhaseResult,
+  type WorkerRunResult,
+  type WorkerBurn,
+  type BurnReport,
+  type RuntimeEvent,
+} from './runtime-types.js';
+
 /**
  * Process user input containing BOTS shortcodes
  *
